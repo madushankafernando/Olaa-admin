@@ -1,0 +1,19 @@
+{
+  "name": "olaa-admin",
+  "private": true,
+  "version": "0.1.0",
+  "description": "olaa admin CRM: React-Admin + Next.js static export, hosted on Vercel. packages/shared is copied from the olaa monorepo.",
+  "workspaces": [
+    "packages/*",
+    "admin-crm"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @olaa/admin-crm",
+    "build": "npm run build -w @olaa/admin-crm",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  }
+}

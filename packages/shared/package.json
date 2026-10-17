@@ -1,0 +1,20 @@
+{
+  "name": "@olaa/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Types, plan limits, Cid personas, onboarding questions and the photo URL builder shared by the API, mobile app and admin.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
