@@ -24,7 +24,7 @@ npm run dev                                      # http://localhost:3001
 ## Deploy
 
 GitHub Actions deploys every push to `main` to production and every pull request to a preview URL, after typecheck
-and tests pass. It needs three repo secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`.
+and tests pass. It needs one repo secret, `ACTIONS_OLAA_ADMIN`, holding a Vercel access token.
 
 The `NEXT_PUBLIC_*` variables are set in the Vercel project (Settings → Environment Variables) and baked into the
 build. The backend must list the CRM's URL in `CORS_ORIGINS`.
