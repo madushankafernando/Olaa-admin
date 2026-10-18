@@ -74,7 +74,7 @@ function CampaignFields() {
         Boost
       </Typography>
       <NumberInput source="extraMatches" label="Extra introductions per day" min={0} max={20} step={1} validate={[minValue(0), maxValue(20)]} defaultValue={0} />
-      <SelectInput source="upgradePlan" label="Give everyone this plan's features" choices={paidPlanChoices} emptyText="No upgrade" emptyValue={null} helperText="Only applies to members whose own plan is lower." />
+      <SelectInput source="upgradePlan" label="Give everyone this plan's features" choices={paidPlanChoices} emptyText="No upgrade" parse={(v: string) => v || null} helperText="Only applies to members whose own plan is lower." />
 
       <Typography variant="subtitle2" sx={{ mt: 2 }}>
         Store discount
