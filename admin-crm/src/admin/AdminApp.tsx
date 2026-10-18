@@ -4,6 +4,9 @@ import InboxIcon from '@mui/icons-material/MoveToInbox';
 import PeopleIcon from '@mui/icons-material/PeopleOutlined';
 import FavoriteIcon from '@mui/icons-material/HandshakeOutlined';
 import FlagIcon from '@mui/icons-material/OutlinedFlag';
+import PlansIcon from '@mui/icons-material/WorkspacePremiumOutlined';
+import PromoIcon from '@mui/icons-material/LocalOfferOutlined';
+import CampaignIcon from '@mui/icons-material/CampaignOutlined';
 import { HashRouter } from 'react-router-dom';
 import { authProvider } from './authProvider';
 import { dataProvider } from './dataProvider';
@@ -12,6 +15,9 @@ import { MemberList, ReviewList } from './members/MemberList';
 import { MemberShow } from './members/MemberShow';
 import { MatchList } from './matches/MatchList';
 import { ReportList } from './reports/ReportList';
+import { CampaignCreate, CampaignEdit, CampaignList } from './subscriptions/Campaigns';
+import { PlanEdit, PlanList } from './subscriptions/Plans';
+import { PromoCodeCreate, PromoCodeEdit, PromoCodeList } from './subscriptions/PromoCodes';
 import { theme } from './theme';
 
 /**
@@ -30,6 +36,9 @@ export default function AdminApp() {
         <Resource name="members" options={{ label: 'Members' }} list={MemberList} show={MemberShow} icon={PeopleIcon} recordRepresentation="display_name" />
         <Resource name="matches" options={{ label: 'Matches' }} list={MatchList} icon={FavoriteIcon} />
         <Resource name="reports" options={{ label: 'Reports' }} list={ReportList} icon={FlagIcon} />
+        <Resource name="plans" options={{ label: 'Plans' }} list={PlanList} edit={PlanEdit} icon={PlansIcon} recordRepresentation="label" />
+        <Resource name="promo-codes" options={{ label: 'Promo codes' }} list={PromoCodeList} create={PromoCodeCreate} edit={PromoCodeEdit} icon={PromoIcon} recordRepresentation="code" />
+        <Resource name="campaigns" options={{ label: 'Campaigns' }} list={CampaignList} create={CampaignCreate} edit={CampaignEdit} icon={CampaignIcon} recordRepresentation="name" />
       </Admin>
     </HashRouter>
   );

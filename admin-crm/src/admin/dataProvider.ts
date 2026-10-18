@@ -1,4 +1,5 @@
-import type { DataProvider, GetListParams, GetOneParams } from 'react-admin';
+import type { CreateParams, DataProvider, DeleteParams, GetListParams, GetOneParams, UpdateParams } from 'react-admin';
+import type { MemberPlan, PremiumGrantRecord } from '@olaa/shared';
 import { api as defaultApi } from './api';
 
 /**
@@ -9,8 +10,12 @@ import { api as defaultApi } from './api';
  *   members   – everyone, filter by status / search
  *   matches   – matches with chat status
  *   reports   – members reported from a chat
+ *   plans        – live plan settings (limits, labels, which plans are on sale); edit only
+ *   promo-codes  – codes members redeem for free premium or a longer trial
+ *   campaigns    – time-limited boosts, store discounts and banners
  *
- * Plus custom actions used by the review screen (decide, suspend, reinstate, purge, moderatePhoto, stats).
+ * Plus custom actions used by the review screen (decide, suspend, reinstate, purge, moderatePhoto, stats),
+ * the trial/store settings, and a member's free premium (memberSubscription, grantPremium, revokeGrant).
  */
 type Api = typeof defaultApi;
 
@@ -25,6 +30,17 @@ export interface ReviewDetail {
 
 export type Decision = 'approve' | 'request_changes' | 'reject';
 
+export interface SubscriptionSettings {
+  id: 'settings';
+  trialDays: number;
+  defaultOffering: string | null;
+}
+
+export interface MemberSubscription {
+  plan: MemberPlan;
+  grants: (PremiumGrantRecord & { revokedAt: string | null })[];
+}
+
 export interface OlaaDataProvider extends DataProvider {
   decide(id: string, decision: Decision, note?: string): Promise<unknown>;
   suspend(id: string, note: string): Promise<unknown>;
@@ -32,6 +48,19 @@ export interface OlaaDataProvider extends DataProvider {
   purge(id: string): Promise<unknown>;
   moderatePhoto(photoId: string, status: 'approved' | 'rejected'): Promise<unknown>;
   stats(): Promise<Record<string, number>>;
+  subscriptionSettings(): Promise<SubscriptionSettings>;
+  saveSubscriptionSettings(patch: Partial<Omit<SubscriptionSettings, 'id'>>): Promise<SubscriptionSettings>;
+  memberSubscription(id: string): Promise<MemberSubscription>;
+  grantPremium(id: string, grant: { plan: PremiumGrantRecord['plan']; days: number; note?: string }): Promise<MemberSubscription>;
+  revokeGrant(grantId: string): Promise<MemberSubscription>;
+}
+
+/** Resources backed by plain REST endpoints under /admin. */
+const REST: Record<string, string> = { plans: '/admin/plans', 'promo-codes': '/admin/promo-codes', campaigns: '/admin/campaigns' };
+
+/** Only the fields the admin changed (React-Admin sends the whole record). */
+function changed(data: Record<string, unknown>, previous: Record<string, unknown> = {}) {
+  return Object.fromEntries(Object.entries(data).filter(([k, v]) => k !== 'id' && JSON.stringify(v) !== JSON.stringify(previous[k])));
 }
 
 const notSupported = (what: string) => () => Promise.reject(new Error(`${what} is not supported in the CRM`));
@@ -61,12 +90,18 @@ export function createDataProvider(api: Api = defaultApi): OlaaDataProvider {
         return api<{ data: { id: string }[]; total: number }>('/admin/matches', { query: { page, perPage } });
       case 'reports':
         return api<{ data: { id: string }[]; total: number }>('/admin/reports', { query: { page, perPage } });
+      case 'plans':
+        return api<{ data: { id: string }[]; total: number }>(REST.plans!);
+      case 'promo-codes':
+      case 'campaigns':
+        return api<{ data: { id: string }[]; total: number }>(REST[resource]!, { query: { page, perPage } });
       default:
         throw new Error(`Unknown resource ${resource}`);
     }
   }
 
   async function one(resource: string, params: GetOneParams) {
+    if (REST[resource]) return { data: await api<{ id: string }>(`${REST[resource]}/${params.id}`) };
     if (resource !== 'members' && resource !== 'review') throw new Error(`No detail view for ${resource}`);
     const detail = await api<Omit<ReviewDetail, 'id'>>(`/admin/profiles/${params.id}/review`);
     return { data: { id: String(params.id), ...detail } as ReviewDetail };
@@ -80,10 +115,20 @@ export function createDataProvider(api: Api = defaultApi): OlaaDataProvider {
       return { data: rows };
     }) as DataProvider['getMany'],
     getManyReference: notSupported('getManyReference') as DataProvider['getManyReference'],
-    create: notSupported('Creating records') as DataProvider['create'],
-    update: notSupported('Editing records') as DataProvider['update'],
+    create: (async (resource: string, params: CreateParams) => {
+      if (resource !== 'promo-codes' && resource !== 'campaigns') throw new Error(`Creating ${resource} is not supported in the CRM`);
+      return { data: await api<{ id: string }>(REST[resource]!, { method: 'POST', body: params.data }) };
+    }) as DataProvider['create'],
+    update: (async (resource: string, params: UpdateParams) => {
+      if (!REST[resource]) throw new Error(`Editing ${resource} is not supported in the CRM`);
+      const body = changed(params.data as Record<string, unknown>, params.previousData as Record<string, unknown>);
+      return { data: await api<{ id: string }>(`${REST[resource]}/${params.id}`, { method: 'PUT', body }) };
+    }) as DataProvider['update'],
     updateMany: notSupported('Bulk edits') as DataProvider['updateMany'],
-    delete: notSupported('Deleting') as DataProvider['delete'],
+    delete: (async (resource: string, params: DeleteParams) => {
+      if (resource !== 'promo-codes' && resource !== 'campaigns') throw new Error(`Deleting ${resource} is not supported in the CRM`);
+      return { data: await api<{ id: string }>(`${REST[resource]}/${params.id}`, { method: 'DELETE' }) };
+    }) as DataProvider['delete'],
     deleteMany: notSupported('Bulk deletes') as DataProvider['deleteMany'],
 
     decide: (id, decision, note) => api(`/admin/profiles/${id}/decision`, { method: 'POST', body: { decision, note: note || undefined } }),
@@ -92,6 +137,11 @@ export function createDataProvider(api: Api = defaultApi): OlaaDataProvider {
     purge: (id) => api(`/admin/profiles/${id}/purge`, { method: 'POST', body: {} }),
     moderatePhoto: (photoId, status) => api(`/admin/photos/${photoId}/moderation`, { method: 'POST', body: { status } }),
     stats: () => api<Record<string, number>>('/admin/stats'),
+    subscriptionSettings: () => api<SubscriptionSettings>('/admin/subscription-settings'),
+    saveSubscriptionSettings: (patch) => api<SubscriptionSettings>('/admin/subscription-settings', { method: 'PUT', body: patch }),
+    memberSubscription: (id) => api<MemberSubscription>(`/admin/profiles/${id}/subscription`),
+    grantPremium: (id, grant) => api<MemberSubscription>(`/admin/profiles/${id}/grants`, { method: 'POST', body: grant }),
+    revokeGrant: (grantId) => api<MemberSubscription>(`/admin/grants/${grantId}/revoke`, { method: 'POST', body: {} }),
   };
 }
 

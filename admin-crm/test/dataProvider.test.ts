@@ -39,7 +39,45 @@ describe('dataProvider', () => {
     expect(api).toHaveBeenLastCalledWith('/admin/profiles/u1/decision', { method: 'POST', body: { decision: 'reject', note: 'Fake photos' } });
   });
 
-  it('editing records directly is refused (all changes go through review actions)', async () => {
+  it('editing members directly is refused (all changes go through review actions)', async () => {
     await expect(createDataProvider(fakeApi()).update('members', { id: 'u1', data: {}, previousData: { id: 'u1' } })).rejects.toThrow(/not supported/);
+  });
+
+  it('plans: list and edit only; an edit sends just the changed fields', async () => {
+    const api = fakeApi({ id: 'weekly', matchesPerDay: 4 });
+    const dp = createDataProvider(api);
+    await dp.getList('plans', { pagination: { page: 1, perPage: 25 }, sort: { field: 'sort', order: 'ASC' }, filter: {} });
+    expect(api).toHaveBeenCalledWith('/admin/plans');
+    const previous = { id: 'weekly', label: 'Weekly', matchesPerDay: 3, visible: true };
+    await dp.update('plans', { id: 'weekly', data: { ...previous, matchesPerDay: 4 }, previousData: previous });
+    expect(api).toHaveBeenLastCalledWith('/admin/plans/weekly', { method: 'PUT', body: { matchesPerDay: 4 } });
+    await expect(dp.create('plans', { data: {} })).rejects.toThrow(/not supported/);
+    await expect(dp.delete('plans', { id: 'weekly', previousData: previous })).rejects.toThrow(/not supported/);
+  });
+
+  it('promo codes and campaigns: paged list, create, get, delete', async () => {
+    const api = fakeApi({ id: 'p1' });
+    const dp = createDataProvider(api);
+    await dp.getList('promo-codes', { pagination: { page: 3, perPage: 10 }, sort: { field: 'createdAt', order: 'DESC' }, filter: {} });
+    expect(api).toHaveBeenLastCalledWith('/admin/promo-codes', { query: { page: 3, perPage: 10 } });
+    await dp.create('promo-codes', { data: { kind: 'premium_days', plan: 'monthly', days: 30 } });
+    expect(api).toHaveBeenLastCalledWith('/admin/promo-codes', { method: 'POST', body: { kind: 'premium_days', plan: 'monthly', days: 30 } });
+    await dp.getOne('campaigns', { id: 'c1' });
+    expect(api).toHaveBeenLastCalledWith('/admin/campaigns/c1');
+    await dp.delete('campaigns', { id: 'c1', previousData: { id: 'c1' } });
+    expect(api).toHaveBeenLastCalledWith('/admin/campaigns/c1', { method: 'DELETE' });
+  });
+
+  it('member free premium: load, give and revoke', async () => {
+    const api = fakeApi({ plan: { id: 'monthly' }, grants: [] });
+    const dp = createDataProvider(api);
+    await dp.memberSubscription('u1');
+    expect(api).toHaveBeenLastCalledWith('/admin/profiles/u1/subscription');
+    await dp.grantPremium('u1', { plan: 'monthly', days: 14, note: 'Outage' });
+    expect(api).toHaveBeenLastCalledWith('/admin/profiles/u1/grants', { method: 'POST', body: { plan: 'monthly', days: 14, note: 'Outage' } });
+    await dp.revokeGrant('g1');
+    expect(api).toHaveBeenLastCalledWith('/admin/grants/g1/revoke', { method: 'POST', body: {} });
+    await dp.saveSubscriptionSettings({ trialDays: 30 });
+    expect(api).toHaveBeenLastCalledWith('/admin/subscription-settings', { method: 'PUT', body: { trialDays: 30 } });
   });
 });

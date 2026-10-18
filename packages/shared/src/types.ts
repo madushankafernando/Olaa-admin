@@ -1,6 +1,6 @@
 /** Domain types shared across apps. Mirrors the Supabase schema (see supabase/migrations). */
 import type { CidPersonaId } from './cid';
-import type { PlanId } from './plans';
+import type { EntitlementSource, PaidPlanId, Plan, PlanId } from './plans';
 
 export type Gender = 'man' | 'woman' | 'nonbinary';
 
@@ -62,7 +62,57 @@ export interface MeResponse {
   profile: Profile;
   photos: Photo[];
   answers: Record<string, string | string[]>;
-  plan: { id: PlanId; matchesPerDay: number; trialEndsAt: string | null; currentPeriodEnd: string | null };
+  plan: MemberPlan;
+}
+
+/** The plan a member has right now (see resolveEntitlement). matchesPerDay includes campaign boosts. */
+export interface MemberPlan {
+  id: PlanId;
+  label: string;
+  matchesPerDay: number;
+  source: EntitlementSource;
+  /** When the plan in force ends: paid period, free premium or trial. null on free. */
+  endsAt: string | null;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+}
+
+/** GET /subscription: everything the subscription screen needs, from the live (admin-edited) catalog. */
+export interface SubscriptionInfo {
+  /** Paid plans on sale, in display order. */
+  plans: Plan[];
+  freePlan: Plan;
+  trialPlan: Plan;
+  trialDays: number;
+  current: MemberPlan & { extraMatches: number; willRenew: boolean | null };
+  /** A running campaign aimed at this member (banner, maybe a store discount). */
+  campaign: { id: string; name: string; bannerTitle: string | null; bannerBody: string | null; endsAt: string } | null;
+  /** RevenueCat offering to load. null = RevenueCat's "current" offering. */
+  offeringId: string | null;
+}
+
+/** premium_days: free premium on `plan` for `days`. trial_extension: add `days` to the free trial. */
+export type PromoKind = 'premium_days' | 'trial_extension';
+
+export interface PromoCode {
+  id: string;
+  code: string;
+  description: string | null;
+  kind: PromoKind;
+  plan: PaidPlanId | null;
+  days: number;
+  maxRedemptions: number | null;
+  redemptionCount: number;
+  startsAt: string | null;
+  expiresAt: string | null;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface RedeemResult {
+  ok: true;
+  message: string;
+  plan: MemberPlan;
 }
 
 export function ageFromBirthdate(birthdate: string, now: Date = new Date()): number {
@@ -71,4 +121,16 @@ export function ageFromBirthdate(birthdate: string, now: Date = new Date()): num
   const m = now.getMonth() - b.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
   return age;
+}
+
+/** A member's free premium, as the admin CRM shows it. */
+export interface PremiumGrantRecord {
+  id: string;
+  plan: PaidPlanId;
+  startsAt: string;
+  endsAt: string;
+  source: 'promo_code' | 'admin';
+  promoCode: string | null;
+  note: string | null;
+  createdAt: string;
 }

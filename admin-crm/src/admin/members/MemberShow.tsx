@@ -32,6 +32,7 @@ import PlayIcon from '@mui/icons-material/PlayCircleOutlined';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { Show, useDataProvider, useNotify, useRecordContext, useRedirect, useRefresh } from 'react-admin';
 import type { Decision, OlaaDataProvider, ReviewDetail } from '../dataProvider';
+import { PlanCard } from './PlanCard';
 import { ageFrom, StatusChip } from './StatusChip';
 
 type NoteAction = { kind: 'request_changes' | 'reject' | 'suspend'; title: string; help: string; confirm: string; required: boolean };
@@ -130,7 +131,7 @@ function ReviewPanel() {
 
   const decide = (d: Decision, n?: string) =>
     run(
-      d === 'approve' ? 'Approved — the member has been told and their 14-day trial has started' : d === 'reject' ? 'Rejected — deletion scheduled' : 'Change request sent',
+      d === 'approve' ? 'Approved — the member has been told and their free trial has started' : d === 'reject' ? 'Rejected — deletion scheduled' : 'Change request sent',
       () => dataProvider.decide(id, d, n),
       'queue',
     );
@@ -254,6 +255,7 @@ function ReviewPanel() {
         </Grid>
 
         <Grid size={{ xs: 12, md: 5 }}>
+          <PlanCard memberId={String(id)} name={p.display_name ?? 'this member'} canGrant={status === 'approved' || status === 'pending_review'} />
           <Card variant="outlined" sx={{ mb: 2 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -291,7 +293,7 @@ function ReviewPanel() {
               {record.history.map((h, i) => (
                 <Box key={i} sx={{ py: 0.75 }}>
                   <Typography variant="body2">
-                    <strong>{(h.decision ?? h.action ?? '').replace('_', ' ')}</strong> · {new Date(h.created_at).toLocaleString()}
+                    <strong>{(h.decision ?? h.action ?? '').replaceAll('_', ' ')}</strong> · {new Date(h.created_at).toLocaleString()}
                   </Typography>
                   {h.note && (
                     <Typography variant="body2" color="text.secondary">
