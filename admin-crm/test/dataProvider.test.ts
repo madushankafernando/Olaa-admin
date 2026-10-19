@@ -80,4 +80,23 @@ describe('dataProvider', () => {
     await dp.saveSubscriptionSettings({ trialDays: 30 });
     expect(api).toHaveBeenLastCalledWith('/admin/subscription-settings', { method: 'PUT', body: { trialDays: 30 } });
   });
+
+  it('push notifications: CRUD plus preview, publish and unschedule', async () => {
+    const api = fakeApi({ id: 'b1', status: 'draft' });
+    const dp = createDataProvider(api);
+    await dp.getList('broadcasts', { pagination: { page: 1, perPage: 25 }, sort: { field: 'createdAt', order: 'DESC' }, filter: {} });
+    expect(api).toHaveBeenLastCalledWith('/admin/broadcasts', { query: { page: 1, perPage: 25 } });
+    await dp.create('broadcasts', { data: { title: 'Hi', body: 'There', audience: 'free' } });
+    expect(api).toHaveBeenLastCalledWith('/admin/broadcasts', { method: 'POST', body: { title: 'Hi', body: 'There', audience: 'free' } });
+    await dp.previewBroadcast('plans', ['weekly']);
+    expect(api).toHaveBeenLastCalledWith('/admin/broadcasts/preview', { method: 'POST', body: { audience: 'plans', plans: ['weekly'] } });
+    await dp.publishBroadcast('b1');
+    expect(api).toHaveBeenLastCalledWith('/admin/broadcasts/b1/publish', { method: 'POST', body: { sendAt: null } });
+    await dp.publishBroadcast('b1', '2026-11-01T09:00:00.000Z');
+    expect(api).toHaveBeenLastCalledWith('/admin/broadcasts/b1/publish', { method: 'POST', body: { sendAt: '2026-11-01T09:00:00.000Z' } });
+    await dp.unscheduleBroadcast('b1');
+    expect(api).toHaveBeenLastCalledWith('/admin/broadcasts/b1/unschedule', { method: 'POST', body: {} });
+    await dp.delete('broadcasts', { id: 'b1', previousData: { id: 'b1' } });
+    expect(api).toHaveBeenLastCalledWith('/admin/broadcasts/b1', { method: 'DELETE' });
+  });
 });

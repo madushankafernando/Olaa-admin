@@ -1,5 +1,5 @@
 import type { CreateParams, DataProvider, DeleteParams, GetListParams, GetOneParams, UpdateParams } from 'react-admin';
-import type { MemberPlan, PremiumGrantRecord } from '@olaa/shared';
+import type { Broadcast, BroadcastAudience, BroadcastPreview, MemberPlan, PaidPlanId, PremiumGrantRecord } from '@olaa/shared';
 import { api as defaultApi } from './api';
 
 /**
@@ -13,9 +13,11 @@ import { api as defaultApi } from './api';
  *   plans        – live plan settings (limits, labels, which plans are on sale); edit only
  *   promo-codes  – codes members redeem for free premium or a longer trial
  *   campaigns    – time-limited boosts, store discounts and banners
+ *   broadcasts   – push notifications to a segment of members (draft → publish now or schedule)
  *
  * Plus custom actions used by the review screen (decide, suspend, reinstate, purge, moderatePhoto, stats),
- * the trial/store settings, and a member's free premium (memberSubscription, grantPremium, revokeGrant).
+ * the trial/store settings, a member's free premium (memberSubscription, grantPremium, revokeGrant), and
+ * push notification actions (previewBroadcast, publishBroadcast, unscheduleBroadcast).
  */
 type Api = typeof defaultApi;
 
@@ -53,10 +55,21 @@ export interface OlaaDataProvider extends DataProvider {
   memberSubscription(id: string): Promise<MemberSubscription>;
   grantPremium(id: string, grant: { plan: PremiumGrantRecord['plan']; days: number; note?: string }): Promise<MemberSubscription>;
   revokeGrant(grantId: string): Promise<MemberSubscription>;
+  previewBroadcast(audience: BroadcastAudience, plans: PaidPlanId[]): Promise<BroadcastPreview>;
+  /** sendAt empty = send now. */
+  publishBroadcast(id: string, sendAt?: string | null): Promise<Broadcast>;
+  unscheduleBroadcast(id: string): Promise<Broadcast>;
 }
 
 /** Resources backed by plain REST endpoints under /admin. */
-const REST: Record<string, string> = { plans: '/admin/plans', 'promo-codes': '/admin/promo-codes', campaigns: '/admin/campaigns' };
+const REST: Record<string, string> = {
+  plans: '/admin/plans',
+  'promo-codes': '/admin/promo-codes',
+  campaigns: '/admin/campaigns',
+  broadcasts: '/admin/broadcasts',
+};
+/** Resources the CRM can create and delete (plans are fixed). */
+const CRUD = new Set(['promo-codes', 'campaigns', 'broadcasts']);
 
 /** Only the fields the admin changed (React-Admin sends the whole record). */
 function changed(data: Record<string, unknown>, previous: Record<string, unknown> = {}) {
@@ -94,6 +107,7 @@ export function createDataProvider(api: Api = defaultApi): OlaaDataProvider {
         return api<{ data: { id: string }[]; total: number }>(REST.plans!);
       case 'promo-codes':
       case 'campaigns':
+      case 'broadcasts':
         return api<{ data: { id: string }[]; total: number }>(REST[resource]!, { query: { page, perPage } });
       default:
         throw new Error(`Unknown resource ${resource}`);
@@ -116,7 +130,7 @@ export function createDataProvider(api: Api = defaultApi): OlaaDataProvider {
     }) as DataProvider['getMany'],
     getManyReference: notSupported('getManyReference') as DataProvider['getManyReference'],
     create: (async (resource: string, params: CreateParams) => {
-      if (resource !== 'promo-codes' && resource !== 'campaigns') throw new Error(`Creating ${resource} is not supported in the CRM`);
+      if (!CRUD.has(resource)) throw new Error(`Creating ${resource} is not supported in the CRM`);
       return { data: await api<{ id: string }>(REST[resource]!, { method: 'POST', body: params.data }) };
     }) as DataProvider['create'],
     update: (async (resource: string, params: UpdateParams) => {
@@ -126,7 +140,7 @@ export function createDataProvider(api: Api = defaultApi): OlaaDataProvider {
     }) as DataProvider['update'],
     updateMany: notSupported('Bulk edits') as DataProvider['updateMany'],
     delete: (async (resource: string, params: DeleteParams) => {
-      if (resource !== 'promo-codes' && resource !== 'campaigns') throw new Error(`Deleting ${resource} is not supported in the CRM`);
+      if (!CRUD.has(resource)) throw new Error(`Deleting ${resource} is not supported in the CRM`);
       return { data: await api<{ id: string }>(`${REST[resource]}/${params.id}`, { method: 'DELETE' }) };
     }) as DataProvider['delete'],
     deleteMany: notSupported('Bulk deletes') as DataProvider['deleteMany'],
@@ -142,6 +156,9 @@ export function createDataProvider(api: Api = defaultApi): OlaaDataProvider {
     memberSubscription: (id) => api<MemberSubscription>(`/admin/profiles/${id}/subscription`),
     grantPremium: (id, grant) => api<MemberSubscription>(`/admin/profiles/${id}/grants`, { method: 'POST', body: grant }),
     revokeGrant: (grantId) => api<MemberSubscription>(`/admin/grants/${grantId}/revoke`, { method: 'POST', body: {} }),
+    previewBroadcast: (audience, plans) => api<BroadcastPreview>('/admin/broadcasts/preview', { method: 'POST', body: { audience, plans } }),
+    publishBroadcast: (id, sendAt) => api<Broadcast>(`/admin/broadcasts/${id}/publish`, { method: 'POST', body: { sendAt: sendAt || null } }),
+    unscheduleBroadcast: (id) => api<Broadcast>(`/admin/broadcasts/${id}/unschedule`, { method: 'POST', body: {} }),
   };
 }
 

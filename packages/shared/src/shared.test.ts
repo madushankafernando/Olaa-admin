@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPhotoUrl, DEFAULT_CATALOG, effectivePlan, PLANS, ageFromBirthdate, planForProductId, resolveEntitlement, type Campaign } from './index';
+import { buildPhotoUrl, DEFAULT_CATALOG, effectivePlan, inBroadcastAudience, PLANS, ageFromBirthdate, planForProductId, resolveEntitlement, type Campaign } from './index';
 
 describe('effectivePlan', () => {
   const now = new Date('2026-10-18T00:00:00Z');
@@ -106,5 +106,20 @@ describe('misc', () => {
   });
   it('maps store product ids (incl. Android base-plan suffix)', () => {
     expect(planForProductId('olaa_monthly:monthly-base')?.id).toBe('monthly');
+  });
+});
+
+describe('inBroadcastAudience', () => {
+  const free = { plan: PLANS.free, source: 'free' as const };
+  const trial = { plan: PLANS.trial, source: 'trial' as const };
+  const weekly = { plan: PLANS.weekly, source: 'paid' as const };
+  const grantMonthly = { plan: PLANS.monthly, source: 'grant' as const };
+  it('segments by the member’s own plan', () => {
+    expect([free, trial, weekly, grantMonthly].map((e) => inBroadcastAudience('all', [], e))).toEqual([true, true, true, true]);
+    expect([free, trial, weekly, grantMonthly].map((e) => inBroadcastAudience('free', [], e))).toEqual([true, false, false, false]);
+    expect([free, trial, weekly, grantMonthly].map((e) => inBroadcastAudience('trial', [], e))).toEqual([false, true, false, false]);
+    expect([free, trial, weekly, grantMonthly].map((e) => inBroadcastAudience('premium', [], e))).toEqual([false, false, true, true]);
+    expect([free, trial, weekly, grantMonthly].map((e) => inBroadcastAudience('plans', ['monthly'], e))).toEqual([false, false, false, true]);
+    expect(inBroadcastAudience('plans', [], weekly)).toBe(false);
   });
 });

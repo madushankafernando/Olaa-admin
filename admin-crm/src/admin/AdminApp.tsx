@@ -7,6 +7,7 @@ import FlagIcon from '@mui/icons-material/OutlinedFlag';
 import PlansIcon from '@mui/icons-material/WorkspacePremiumOutlined';
 import PromoIcon from '@mui/icons-material/LocalOfferOutlined';
 import CampaignIcon from '@mui/icons-material/CampaignOutlined';
+import NotificationsIcon from '@mui/icons-material/NotificationsActiveOutlined';
 import { HashRouter } from 'react-router-dom';
 import { authProvider } from './authProvider';
 import { dataProvider } from './dataProvider';
@@ -14,6 +15,7 @@ import { Dashboard } from './Dashboard';
 import { MemberList, ReviewList } from './members/MemberList';
 import { MemberShow } from './members/MemberShow';
 import { MatchList } from './matches/MatchList';
+import { BroadcastCreate, BroadcastEdit, BroadcastList, BroadcastShow } from './notifications/Broadcasts';
 import { ReportList } from './reports/ReportList';
 import { CampaignCreate, CampaignEdit, CampaignList } from './subscriptions/Campaigns';
 import { PlanEdit, PlanList } from './subscriptions/Plans';
@@ -39,6 +41,7 @@ export default function AdminApp() {
         <Resource name="plans" options={{ label: 'Plans' }} list={PlanList} edit={PlanEdit} icon={PlansIcon} recordRepresentation="label" />
         <Resource name="promo-codes" options={{ label: 'Promo codes' }} list={PromoCodeList} create={PromoCodeCreate} edit={PromoCodeEdit} icon={PromoIcon} recordRepresentation="code" />
         <Resource name="campaigns" options={{ label: 'Campaigns' }} list={CampaignList} create={CampaignCreate} edit={CampaignEdit} icon={CampaignIcon} recordRepresentation="name" />
+        <Resource name="broadcasts" options={{ label: 'Push notifications' }} list={BroadcastList} create={BroadcastCreate} edit={BroadcastEdit} show={BroadcastShow} icon={NotificationsIcon} recordRepresentation="title" />
       </Admin>
     </HashRouter>
   );
