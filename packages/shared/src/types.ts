@@ -1,6 +1,6 @@
 /** Domain types shared across apps. Mirrors the Supabase schema (see supabase/migrations). */
 import type { CidPersonaId } from './cid';
-import type { EntitlementSource, PaidPlanId, Plan, PlanId } from './plans';
+import type { BoostPack, BoostState, EntitlementSource, PaidPlanId, Plan, PlanId } from './plans';
 
 export type Gender = 'man' | 'woman' | 'nonbinary';
 
@@ -89,6 +89,9 @@ export interface SubscriptionInfo {
   campaign: { id: string; name: string; bannerTitle: string | null; bannerBody: string | null; endsAt: string } | null;
   /** RevenueCat offering to load. null = RevenueCat's "current" offering. */
   offeringId: string | null;
+  /** Boost packs on sale, in display order, and the member's boosts. */
+  boostPacks: BoostPack[];
+  boost: BoostState;
 }
 
 /** premium_days: free premium on `plan` for `days`. trial_extension: add `days` to the free trial. */

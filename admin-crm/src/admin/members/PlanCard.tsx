@@ -18,6 +18,7 @@ import {
   Typography,
 } from '@mui/material';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcardOutlined';
+import BoostIcon from '@mui/icons-material/RocketLaunchOutlined';
 import { useDataProvider, useNotify, useRefresh } from 'react-admin';
 import { PLANS, type EntitlementSource, type PaidPlanId } from '@olaa/shared';
 import type { MemberSubscription, OlaaDataProvider } from '../dataProvider';
@@ -41,6 +42,9 @@ export function PlanCard({ memberId, name, canGrant }: { memberId: string; name:
   const [days, setDays] = useState('14');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [boostOpen, setBoostOpen] = useState(false);
+  const [boostCount, setBoostCount] = useState('1');
+  const [boostNote, setBoostNote] = useState('');
 
   const load = useCallback(
     () => dataProvider.memberSubscription(memberId).then(setSub, (e: Error) => notify(e.message, { type: 'error' })),
@@ -52,6 +56,8 @@ export function PlanCard({ memberId, name, canGrant }: { memberId: string; name:
 
   const n = Number(days);
   const validDays = Number.isInteger(n) && n >= 1 && n <= 365;
+  const bc = Number(boostCount);
+  const validBoosts = Number.isInteger(bc) && bc >= 1 && bc <= 50;
 
   async function act(label: string, fn: () => Promise<MemberSubscription>) {
     setBusy(true);
@@ -59,7 +65,9 @@ export function PlanCard({ memberId, name, canGrant }: { memberId: string; name:
       setSub(await fn());
       notify(label, { type: 'success' });
       setOpen(false);
+      setBoostOpen(false);
       setNote('');
+      setBoostNote('');
       refresh(); // history card
     } catch (e) {
       notify((e as Error).message, { type: 'error' });
@@ -75,9 +83,14 @@ export function PlanCard({ memberId, name, canGrant }: { memberId: string; name:
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
           <Typography variant="h6">Plan</Typography>
           {canGrant && (
-            <Button size="small" startIcon={<CardGiftcardIcon />} onClick={() => setOpen(true)}>
-              Give free premium
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button size="small" startIcon={<BoostIcon />} onClick={() => setBoostOpen(true)}>
+                Give boosts
+              </Button>
+              <Button size="small" startIcon={<CardGiftcardIcon />} onClick={() => setOpen(true)}>
+                Give free premium
+              </Button>
+            </Stack>
           )}
         </Stack>
         {!sub ? (
@@ -90,6 +103,10 @@ export function PlanCard({ memberId, name, canGrant }: { memberId: string; name:
             <Typography variant="body2" color="text.secondary">
               {SOURCE_LABEL[sub.plan.source]}
               {sub.plan.endsAt ? ` · until ${fmtDate(sub.plan.endsAt)}` : ''}
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              Boosts: <strong>{sub.boost.balance}</strong> left
+              {sub.boost.activeUntil ? ` · boosted until ${fmtDate(sub.boost.activeUntil)}` : ''}
             </Typography>
             {sub.grants.length > 0 && (
               <Box sx={{ mt: 1.5 }}>
@@ -150,6 +167,29 @@ export function PlanCard({ memberId, name, canGrant }: { memberId: string; name:
             variant="contained"
             disabled={busy || !validDays}
             onClick={() => act(`Gave ${n} days of ${PLANS[plan].label}`, () => dataProvider.grantPremium(memberId, { plan, days: n, note: note.trim() || undefined }))}
+          >
+            Give
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={boostOpen} onClose={() => !busy && setBoostOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Give {name} boosts</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>Added to their balance to use whenever they like. They get a push notification, and it&apos;s logged in their history.</DialogContentText>
+          <Stack spacing={2}>
+            <TextField label="Boosts" type="number" value={boostCount} onChange={(e) => setBoostCount(e.target.value)} error={!validBoosts} helperText={validBoosts ? ' ' : 'Between 1 and 50'} />
+            <TextField label="Reason (for admins)" value={boostNote} onChange={(e) => setBoostNote(e.target.value)} slotProps={{ htmlInput: { maxLength: 500 } }} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBoostOpen(false)} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            disabled={busy || !validBoosts}
+            onClick={() => act(`Gave ${bc} boost${bc === 1 ? '' : 's'}`, () => dataProvider.grantBoosts(memberId, { count: bc, note: boostNote.trim() || undefined }))}
           >
             Give
           </Button>

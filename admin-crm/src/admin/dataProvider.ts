@@ -1,5 +1,5 @@
 import type { CreateParams, DataProvider, DeleteParams, GetListParams, GetOneParams, UpdateParams } from 'react-admin';
-import type { Broadcast, BroadcastAudience, BroadcastPreview, MemberPlan, PaidPlanId, PremiumGrantRecord } from '@olaa/shared';
+import type { BoostState, Broadcast, BroadcastAudience, BroadcastPreview, MemberPlan, PaidPlanId, PremiumGrantRecord } from '@olaa/shared';
 import { api as defaultApi } from './api';
 
 /**
@@ -10,7 +10,8 @@ import { api as defaultApi } from './api';
  *   members   – everyone, filter by status / search
  *   matches   – matches with chat status
  *   reports   – members reported from a chat
- *   plans        – live plan settings (limits, labels, which plans are on sale); edit only
+ *   plans        – live plan settings (limits, labels, price points, which plans are on sale); edit only
+ *   boost-packs  – profile boost packs (contents, price points); edit only
  *   promo-codes  – codes members redeem for free premium or a longer trial
  *   campaigns    – time-limited boosts, store discounts and banners
  *   broadcasts   – push notifications to a segment of members (draft → publish now or schedule)
@@ -36,11 +37,13 @@ export interface SubscriptionSettings {
   id: 'settings';
   trialDays: number;
   defaultOffering: string | null;
+  boostHours: number;
 }
 
 export interface MemberSubscription {
   plan: MemberPlan;
   grants: (PremiumGrantRecord & { revokedAt: string | null })[];
+  boost: BoostState;
 }
 
 export interface OlaaDataProvider extends DataProvider {
@@ -55,6 +58,7 @@ export interface OlaaDataProvider extends DataProvider {
   memberSubscription(id: string): Promise<MemberSubscription>;
   grantPremium(id: string, grant: { plan: PremiumGrantRecord['plan']; days: number; note?: string }): Promise<MemberSubscription>;
   revokeGrant(grantId: string): Promise<MemberSubscription>;
+  grantBoosts(id: string, grant: { count: number; note?: string }): Promise<MemberSubscription>;
   previewBroadcast(audience: BroadcastAudience, plans: PaidPlanId[]): Promise<BroadcastPreview>;
   /** sendAt empty = send now. */
   publishBroadcast(id: string, sendAt?: string | null): Promise<Broadcast>;
@@ -64,6 +68,7 @@ export interface OlaaDataProvider extends DataProvider {
 /** Resources backed by plain REST endpoints under /admin. */
 const REST: Record<string, string> = {
   plans: '/admin/plans',
+  'boost-packs': '/admin/boost-packs',
   'promo-codes': '/admin/promo-codes',
   campaigns: '/admin/campaigns',
   broadcasts: '/admin/broadcasts',
@@ -104,7 +109,8 @@ export function createDataProvider(api: Api = defaultApi): OlaaDataProvider {
       case 'reports':
         return api<{ data: { id: string }[]; total: number }>('/admin/reports', { query: { page, perPage } });
       case 'plans':
-        return api<{ data: { id: string }[]; total: number }>(REST.plans!);
+      case 'boost-packs':
+        return api<{ data: { id: string }[]; total: number }>(REST[resource]!);
       case 'promo-codes':
       case 'campaigns':
       case 'broadcasts':
@@ -155,6 +161,7 @@ export function createDataProvider(api: Api = defaultApi): OlaaDataProvider {
     saveSubscriptionSettings: (patch) => api<SubscriptionSettings>('/admin/subscription-settings', { method: 'PUT', body: patch }),
     memberSubscription: (id) => api<MemberSubscription>(`/admin/profiles/${id}/subscription`),
     grantPremium: (id, grant) => api<MemberSubscription>(`/admin/profiles/${id}/grants`, { method: 'POST', body: grant }),
+    grantBoosts: (id, grant) => api<MemberSubscription>(`/admin/profiles/${id}/boosts`, { method: 'POST', body: grant }),
     revokeGrant: (grantId) => api<MemberSubscription>(`/admin/grants/${grantId}/revoke`, { method: 'POST', body: {} }),
     previewBroadcast: (audience, plans) => api<BroadcastPreview>('/admin/broadcasts/preview', { method: 'POST', body: { audience, plans } }),
     publishBroadcast: (id, sendAt) => api<Broadcast>(`/admin/broadcasts/${id}/publish`, { method: 'POST', body: { sendAt: sendAt || null } }),

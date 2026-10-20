@@ -99,4 +99,18 @@ describe('dataProvider', () => {
     await dp.delete('broadcasts', { id: 'b1', previousData: { id: 'b1' } });
     expect(api).toHaveBeenLastCalledWith('/admin/broadcasts/b1', { method: 'DELETE' });
   });
+
+  it('boost packs (list/edit only) and gifting boosts', async () => {
+    const api = fakeApi({ id: 'boost_3' });
+    const dp = createDataProvider(api);
+    await dp.getList('boost-packs', { pagination: { page: 1, perPage: 25 }, sort: { field: 'sort', order: 'ASC' }, filter: {} });
+    expect(api).toHaveBeenLastCalledWith('/admin/boost-packs');
+    const previous = { id: 'boost_3', productId: 'olaa_boost_3', priceOptions: [{ productId: 'olaa_boost_3', priceUsd: 9.99 }] };
+    const priceOptions = [...previous.priceOptions, { productId: 'olaa_boost_3_799', priceUsd: 7.99 }];
+    await dp.update('boost-packs', { id: 'boost_3', data: { ...previous, priceOptions, productId: 'olaa_boost_3_799' }, previousData: previous });
+    expect(api).toHaveBeenLastCalledWith('/admin/boost-packs/boost_3', { method: 'PUT', body: { priceOptions, productId: 'olaa_boost_3_799' } });
+    await expect(dp.create('boost-packs', { data: {} })).rejects.toThrow(/not supported/);
+    await dp.grantBoosts('u1', { count: 2, note: 'Thanks' });
+    expect(api).toHaveBeenLastCalledWith('/admin/profiles/u1/boosts', { method: 'POST', body: { count: 2, note: 'Thanks' } });
+  });
 });

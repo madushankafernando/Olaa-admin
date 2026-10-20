@@ -8,6 +8,7 @@ import PlansIcon from '@mui/icons-material/WorkspacePremiumOutlined';
 import PromoIcon from '@mui/icons-material/LocalOfferOutlined';
 import CampaignIcon from '@mui/icons-material/CampaignOutlined';
 import NotificationsIcon from '@mui/icons-material/NotificationsActiveOutlined';
+import BoostIcon from '@mui/icons-material/RocketLaunchOutlined';
 import { HashRouter } from 'react-router-dom';
 import { authProvider } from './authProvider';
 import { dataProvider } from './dataProvider';
@@ -17,6 +18,7 @@ import { MemberShow } from './members/MemberShow';
 import { MatchList } from './matches/MatchList';
 import { BroadcastCreate, BroadcastEdit, BroadcastList, BroadcastShow } from './notifications/Broadcasts';
 import { ReportList } from './reports/ReportList';
+import { BoostPackEdit, BoostPackList } from './subscriptions/BoostPacks';
 import { CampaignCreate, CampaignEdit, CampaignList } from './subscriptions/Campaigns';
 import { PlanEdit, PlanList } from './subscriptions/Plans';
 import { PromoCodeCreate, PromoCodeEdit, PromoCodeList } from './subscriptions/PromoCodes';
@@ -39,6 +41,7 @@ export default function AdminApp() {
         <Resource name="matches" options={{ label: 'Matches' }} list={MatchList} icon={FavoriteIcon} />
         <Resource name="reports" options={{ label: 'Reports' }} list={ReportList} icon={FlagIcon} />
         <Resource name="plans" options={{ label: 'Plans' }} list={PlanList} edit={PlanEdit} icon={PlansIcon} recordRepresentation="label" />
+        <Resource name="boost-packs" options={{ label: 'Boost packs' }} list={BoostPackList} edit={BoostPackEdit} icon={BoostIcon} recordRepresentation="label" />
         <Resource name="promo-codes" options={{ label: 'Promo codes' }} list={PromoCodeList} create={PromoCodeCreate} edit={PromoCodeEdit} icon={PromoIcon} recordRepresentation="code" />
         <Resource name="campaigns" options={{ label: 'Campaigns' }} list={CampaignList} create={CampaignCreate} edit={CampaignEdit} icon={CampaignIcon} recordRepresentation="name" />
         <Resource name="broadcasts" options={{ label: 'Push notifications' }} list={BroadcastList} create={BroadcastCreate} edit={BroadcastEdit} show={BroadcastShow} icon={NotificationsIcon} recordRepresentation="title" />

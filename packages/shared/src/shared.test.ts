@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPhotoUrl, DEFAULT_CATALOG, effectivePlan, inBroadcastAudience, PLANS, ageFromBirthdate, planForProductId, resolveEntitlement, type Campaign } from './index';
+import { boostedScore, boostPackForProductId, buildPhotoUrl, DEFAULT_BOOST_PACKS, DEFAULT_CATALOG, effectivePlan, inBroadcastAudience, PLANS, ageFromBirthdate, planForProductId, resolveEntitlement, type Campaign } from './index';
 
 describe('effectivePlan', () => {
   const now = new Date('2026-10-18T00:00:00Z');
@@ -121,5 +121,28 @@ describe('inBroadcastAudience', () => {
     expect([free, trial, weekly, grantMonthly].map((e) => inBroadcastAudience('premium', [], e))).toEqual([false, false, true, true]);
     expect([free, trial, weekly, grantMonthly].map((e) => inBroadcastAudience('plans', ['monthly'], e))).toEqual([false, false, false, true]);
     expect(inBroadcastAudience('plans', [], weekly)).toBe(false);
+  });
+});
+
+describe('price options and boosts', () => {
+  it('older price points still map to their plan', () => {
+    const catalog = {
+      ...DEFAULT_CATALOG,
+      plans: { ...DEFAULT_CATALOG.plans, monthly: { ...PLANS.monthly, productId: 'olaa_m_2499', priceOptions: [{ productId: 'olaa_m_2499', priceUsd: 24.99 }, { productId: 'olaa_monthly', priceUsd: 30 }] } },
+    };
+    expect(planForProductId('olaa_m_2499', catalog)?.id).toBe('monthly');
+    expect(planForProductId('olaa_monthly', catalog)?.id).toBe('monthly');
+    expect(planForProductId('olaa_boost_1', catalog)).toBeNull();
+  });
+  it('maps boost products to packs, including other price points', () => {
+    expect(boostPackForProductId('olaa_boost_3')?.boosts).toBe(3);
+    expect(boostPackForProductId('olaa_monthly')).toBeNull();
+    const packs = DEFAULT_BOOST_PACKS.map((p) => (p.id === 'boost_1' ? { ...p, priceOptions: [...p.priceOptions, { productId: 'olaa_boost_1_299', priceUsd: 2.99 }] } : p));
+    expect(boostPackForProductId('olaa_boost_1_299', packs)?.id).toBe('boost_1');
+  });
+  it('a boost lifts a match but never rescues a deal-breaker', () => {
+    expect(boostedScore(0.5, true)).toBeCloseTo(0.7);
+    expect(boostedScore(0.5, false)).toBe(0.5);
+    expect(boostedScore(-1, true)).toBe(-1);
   });
 });

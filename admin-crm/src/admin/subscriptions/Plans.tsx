@@ -23,6 +23,7 @@ import {
 import { isPaidPlan, type Plan } from '@olaa/shared';
 import type { OlaaDataProvider, SubscriptionSettings } from '../dataProvider';
 import { LiveNote } from './common';
+import { PricingFields } from './Pricing';
 
 const PLAN_HELP: Record<Plan['id'], string> = {
   trial: 'Every newly approved member starts here. Its length is set in "Trial and store" above.',
@@ -109,8 +110,8 @@ export function PlanList() {
   return (
     <Box>
       <LiveNote>
-        Changes here apply to every member within seconds — the app, Cid and the daily match limits all read these settings. Store prices themselves are set
-        in App Store Connect and Google Play; the price here is only shown if the store can&apos;t be reached.
+        Changes here apply to every member within seconds — the app, Cid and the daily match limits all read these settings. To change a price, open a
+        plan and pick another price point (a store product created at that price).
       </LiveNote>
       <TrialAndStoreCard />
       <List title="Plans" pagination={false} actions={false} sort={{ field: 'sort', order: 'ASC' }}>
@@ -119,7 +120,7 @@ export function PlanList() {
           <FunctionField label="Type" render={(p: Plan) => <Chip size="small" variant="outlined" label={isPaidPlan(p.id) ? 'paid' : p.id} />} />
           <NumberField source="matchesPerDay" label="Intros / day" sortable={false} />
           <FunctionField label="Price" render={(p: Plan) => (isPaidPlan(p.id) ? `$${p.priceUsd ?? '—'} / ${p.billingPeriod ?? '—'}` : '—')} />
-          <TextField source="productId" label="Store product" emptyText="—" sortable={false} />
+          <TextField source="productId" label="Live store product" emptyText="—" sortable={false} />
           <FunctionField label="On sale" render={(p: Plan) => (isPaidPlan(p.id) ? <BooleanField source="visible" /> : '—')} />
           <TextField source="badge" emptyText="—" sortable={false} />
         </Datagrid>
@@ -144,14 +145,8 @@ function PlanFormFields() {
           <BooleanInput source="visible" label="On sale in the app" helperText="Turn off to stop offering this plan. Existing subscribers keep it until it ends." />
           <TextInput source="badge" helperText='Small tag on the subscription screen, e.g. "best value". Leave empty for none.' />
           <NumberInput source="sort" label="Order on the subscription screen" min={0} max={100} step={1} />
-          <NumberInput source="priceUsd" label="Fallback price (USD)" min={0} step={0.01} helperText="Only shown if the store price can't be loaded." />
           <TextInput source="billingPeriod" helperText='e.g. "week", "month", "3 months"' />
-          <TextInput
-            source="productId"
-            label="Store product id"
-            helperText="Must match the product in App Store Connect / Google Play and RevenueCat. Discounted products starting with this id count as this plan."
-            validate={[required()]}
-          />
+          <PricingFields example={`${plan.productId ?? `olaa_${plan.id}`}_2499`} />
         </>
       )}
     </>

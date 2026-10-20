@@ -16,14 +16,26 @@ export type PlanId = 'trial' | 'free' | 'weekly' | 'monthly' | 'quarterly';
 export const PAID_PLAN_IDS = ['weekly', 'monthly', 'quarterly'] as const satisfies readonly PlanId[];
 export type PaidPlanId = (typeof PAID_PLAN_IDS)[number];
 
+/**
+ * One price a package can be sold at: a store product (App Store / Google Play / RevenueCat Test Store) created at that
+ * price. Stores don't let apps set prices, so the admin creates a few and picks which one is live in the CRM.
+ */
+export interface PriceOption {
+  productId: string;
+  priceUsd: number;
+}
+
 export interface Plan {
   id: PlanId;
   label: string;
+  /** Price of the live product (productId), for display when the store can't be reached. */
   priceUsd: number | null;
   billingPeriod: string | null;
   matchesPerDay: number;
-  /** RevenueCat / store product identifier (paid plans only). */
+  /** The live store product (paid plans only); one of priceOptions. */
   productId: string | null;
+  /** Price points this plan can be sold at. Older ones stay listed so existing subscribers still map to the plan. */
+  priceOptions: PriceOption[];
   /** Paid plans only: offered on the subscription screen. */
   visible: boolean;
   /** Optional tag on the subscription screen, e.g. "best value". */
@@ -46,11 +58,11 @@ export const DEFAULT_CATALOG: PlanCatalog = {
   plans: {
     // ASSUMPTION: the brief doesn't give a trial limit; the trial gets the top tier (5/day)
     // so people see the product at its best.
-    trial: { id: 'trial', label: 'Free trial', priceUsd: 0, billingPeriod: null, matchesPerDay: 5, productId: null, visible: false, badge: null, sort: 0 },
-    free: { id: 'free', label: 'Free', priceUsd: 0, billingPeriod: null, matchesPerDay: 1, productId: null, visible: false, badge: null, sort: 1 },
-    weekly: { id: 'weekly', label: 'Weekly', priceUsd: 10, billingPeriod: 'week', matchesPerDay: 3, productId: 'olaa_weekly', visible: true, badge: null, sort: 2 },
-    monthly: { id: 'monthly', label: 'Monthly', priceUsd: 30, billingPeriod: 'month', matchesPerDay: 5, productId: 'olaa_monthly', visible: true, badge: null, sort: 3 },
-    quarterly: { id: 'quarterly', label: '3 months', priceUsd: 75, billingPeriod: '3 months', matchesPerDay: 5, productId: 'olaa_quarterly', visible: true, badge: 'best value', sort: 4 },
+    trial: { id: 'trial', label: 'Free trial', priceUsd: 0, billingPeriod: null, matchesPerDay: 5, productId: null, priceOptions: [], visible: false, badge: null, sort: 0 },
+    free: { id: 'free', label: 'Free', priceUsd: 0, billingPeriod: null, matchesPerDay: 1, productId: null, priceOptions: [], visible: false, badge: null, sort: 1 },
+    weekly: { id: 'weekly', label: 'Weekly', priceUsd: 10, billingPeriod: 'week', matchesPerDay: 3, productId: 'olaa_weekly', priceOptions: [{ productId: 'olaa_weekly', priceUsd: 10 }], visible: true, badge: null, sort: 2 },
+    monthly: { id: 'monthly', label: 'Monthly', priceUsd: 30, billingPeriod: 'month', matchesPerDay: 5, productId: 'olaa_monthly', priceOptions: [{ productId: 'olaa_monthly', priceUsd: 30 }], visible: true, badge: null, sort: 3 },
+    quarterly: { id: 'quarterly', label: '3 months', priceUsd: 75, billingPeriod: '3 months', matchesPerDay: 5, productId: 'olaa_quarterly', priceOptions: [{ productId: 'olaa_quarterly', priceUsd: 75 }], visible: true, badge: 'best value', sort: 4 },
   },
 };
 
@@ -69,16 +81,78 @@ export function paidPlans(catalog: PlanCatalog = DEFAULT_CATALOG): Plan[] {
 
 export const PAID_PLANS: Plan[] = paidPlans(DEFAULT_CATALOG);
 
+/** Store product ids that belong to a package: the live one and every price option. */
+const productIdsOf = (p: { productId: string | null; priceOptions: PriceOption[] }) =>
+  [p.productId, ...p.priceOptions.map((o) => o.productId)].filter((id): id is string => !!id);
+
+/** Longest id that `productId` starts with (exact match or a store suffix like Android's ":monthly-base"). */
+function bestPrefix<T extends { productId: string | null; priceOptions: PriceOption[] }>(productId: string, items: T[]): T | null {
+  let best: { item: T; len: number } | null = null;
+  for (const item of items)
+    for (const id of productIdsOf(item)) if (productId.startsWith(id) && (!best || id.length > best.len)) best = { item, len: id.length };
+  return best?.item ?? null;
+}
+
 /**
- * Which plan a store product belongs to. Matches by prefix, so discounted products (olaa_monthly_promo) and
- * Android base-plan ids (olaa_monthly:monthly-base) map to their plan. Longest product id wins.
+ * Which plan a store product belongs to. Matches by prefix against the live product and every price option, so
+ * discounted products (olaa_monthly_promo), older price points and Android base-plan ids (olaa_monthly:monthly-base)
+ * map to their plan. Longest product id wins.
  */
 export function planForProductId(productId: string, catalog: PlanCatalog = DEFAULT_CATALOG): Plan | null {
-  return (
-    PAID_PLAN_IDS.map((id) => catalog.plans[id])
-      .filter((p) => p.productId && productId.startsWith(p.productId))
-      .sort((a, b) => b.productId!.length - a.productId!.length)[0] ?? null
-  );
+  return bestPrefix(productId, PAID_PLAN_IDS.map((id) => catalog.plans[id]));
+}
+
+// ───────────── Profile boosts
+
+/**
+ * A boost puts a member at the front of other members' introductions for a while (BoostSettings.hours). Members buy
+ * boosts in packs (one-off store purchases) and use them whenever they like. Pack contents, prices and the boost
+ * length are edited in the admin CRM.
+ */
+export type BoostPackId = 'boost_1' | 'boost_3' | 'boost_5';
+export const BOOST_PACK_IDS = ['boost_1', 'boost_3', 'boost_5'] as const satisfies readonly BoostPackId[];
+
+export interface BoostPack {
+  id: BoostPackId;
+  label: string;
+  /** Boosts the member gets. */
+  boosts: number;
+  /** The live store product; one of priceOptions. */
+  productId: string;
+  priceUsd: number;
+  priceOptions: PriceOption[];
+  visible: boolean;
+  badge: string | null;
+  sort: number;
+}
+
+export const DEFAULT_BOOST_HOURS = 24;
+/** Score added to a boosted member when ranking someone's introductions (scores are 0..1). */
+export const BOOST_SCORE_BONUS = 0.2;
+
+export const DEFAULT_BOOST_PACKS: BoostPack[] = [
+  { id: 'boost_1', label: '1 boost', boosts: 1, productId: 'olaa_boost_1', priceUsd: 3.99, priceOptions: [{ productId: 'olaa_boost_1', priceUsd: 3.99 }], visible: true, badge: null, sort: 1 },
+  { id: 'boost_3', label: '3 boosts', boosts: 3, productId: 'olaa_boost_3', priceUsd: 9.99, priceOptions: [{ productId: 'olaa_boost_3', priceUsd: 9.99 }], visible: true, badge: 'popular', sort: 2 },
+  { id: 'boost_5', label: '5 boosts', boosts: 5, productId: 'olaa_boost_5', priceUsd: 14.99, priceOptions: [{ productId: 'olaa_boost_5', priceUsd: 14.99 }], visible: true, badge: 'best value', sort: 3 },
+];
+
+/** Which boost pack a store product belongs to (live product or any price option, prefix match). */
+export function boostPackForProductId(productId: string, packs: BoostPack[] = DEFAULT_BOOST_PACKS): BoostPack | null {
+  return bestPrefix(productId, packs);
+}
+
+/** Score used to rank introductions: boosted members move up, but a boost never rescues a deal-breaker (score < 0). */
+export function boostedScore(score: number, boosted: boolean): number {
+  return boosted && score >= 0 ? score + BOOST_SCORE_BONUS : score;
+}
+
+export interface BoostState {
+  /** Unused boosts. */
+  balance: number;
+  /** When the running boost ends; null when none is running. */
+  activeUntil: string | null;
+  /** Length of one boost, from the CRM. */
+  hours: number;
 }
 
 export interface SubscriptionState {
